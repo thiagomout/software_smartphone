@@ -1,2 +1,2 @@
 # software_smartphone
-Programs from Software for Smartphone classes in UFRJ
+Apps from Software for Smartphone classes in UFRJ
