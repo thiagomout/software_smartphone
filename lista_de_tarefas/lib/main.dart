@@ -1,4 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 void main() => runApp(const MyApp());
 
@@ -13,10 +16,265 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         colorSchemeSeed: Colors.blue,
       ),
-      home: const MyHomePage(title: 'Minha Lista de Tarefas'),
+      home: const LoginPage(title: 'Minha Lista de Tarefas'),
     );
   }
 }
+
+class AuthService {
+  Future<String> fazerLogin(String email, String senha) async {
+    final url = Uri.https('barra.cos.ufrj.br:443', '/rest/rpc/fazer_login');
+    final client = http.Client();
+
+    final headers = {
+      'accept': 'application/json',
+      'Content-Type': 'application/json',
+    };
+
+    final body = {
+      'email': email,
+      'senha': senha,
+    };
+
+    try {
+      final jsonBody = json.encode(body);
+      final response = await client.post(url, headers: headers, body: jsonBody);
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        if (responseData.containsKey('token') && responseData['token'] != null) {
+          String token = responseData['token'];
+          return token;
+        } else {
+          return '';
+        }
+      } else {
+        return '';
+      }
+    } catch (e) {
+      return '';
+    } finally {
+      client.close();
+    }
+  }
+  Future<String> registrarUsuario(String email, String senha, String nome, String celular) async {
+    final url = Uri.https('barra.cos.ufrj.br:443', '/rest/rpc/registra_usuario');
+    final client = http.Client();
+
+    final headers = {
+      'accept': 'application/json',
+      'Content-Type': 'application/json',
+    };
+
+    final body = {
+      'nome': nome,
+      'email': email,
+      'celular': celular,
+      'senha': senha
+    };
+
+    try {
+      final jsonBody = json.encode(body);
+      final response = await client.post(url, headers: headers, body: jsonBody);
+
+      if (response.statusCode == 201) {
+        return '';
+      } else {
+        return '';
+      }
+    } catch (e) {
+      return '';
+      }
+      finally {
+      client.close();
+    }
+  }
+
+  Future<void> criarListaVazia(String token, String email) async {
+    final url = Uri.https('barra.cos.ufrj.br:443', '/rest/tarefas');
+    final client = http.Client();
+
+    final headers = {
+      'accept': 'application/json',
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    };
+
+    final body = json.encode({
+      'email': email,
+      'valor': [],
+    });
+
+    try {
+      final response = await client.post(url, headers: headers, body: body);
+      if (response.statusCode == 201) {
+      } else {
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Ocorreu um erro: ${e.toString()}');
+      }
+    } finally {
+      client.close();
+    }
+  }
+}
+
+class LoginPage extends StatefulWidget {
+  const LoginPage({super.key, required String title});
+
+  @override
+  State<LoginPage> createState(){
+    return _LoginPageState();
+  }
+}
+
+class _LoginPageState extends State<LoginPage> {
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final AuthService _authService = AuthService();
+  bool _isLoading = false;
+
+  void _login() async {
+    setState(() {
+      _isLoading = true;
+    });
+    String token = await _authService.fazerLogin(
+      _emailController.text.trim(),
+      _passwordController.text.trim(),
+    );
+    setState(() {
+      _isLoading = false;
+    });
+    if (token.isNotEmpty) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const TaskScreen()),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Falha no login. Verifique suas credenciais.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Login'),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            TextField(
+              controller: _emailController,
+              decoration: const InputDecoration(labelText: 'Email'),
+            ),
+            TextField(
+              controller: _passwordController,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'Senha'),
+            ),
+            const SizedBox(height: 20),
+            _isLoading
+                ? const CircularProgressIndicator()
+                : ElevatedButton(
+                    onPressed: _login,
+                    child: const Text('Entrar'),
+                  ),
+            TextButton(
+              onPressed: () {
+                // Implementar função de registro
+              },
+              child: const Text('Registrar-se'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class RegisterPage extends StatefulWidget {
+    const RegisterPage({super.key});
+
+    @override
+    State<RegisterPage> createState() {
+      return _RegisterPageState();
+    }
+  }
+  class _RegisterPageState extends State<RegisterPage> {
+    final _emailController = TextEditingController();
+    final _nameController = TextEditingController();
+    final _phonenunberController = TextEditingController();
+    final _passwordController = TextEditingController();
+    final _confirmpasswordController = TextEditingController();
+    final AuthService _authService = AuthService();
+    bool _isLoading = false;
+
+    void _register() async {
+      setState(() {
+        _isLoading = true;
+      });
+      String token = await _authService.registrarUsuario(
+        _emailController.text.trim(),
+        _passwordController.text.trim(),
+        _nameController.text.trim(),
+        _phonenunberController.text.trim(),
+      );
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        if (_passwordController.text.trim() != _confirmpasswordController.text.trim()) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const TaskScreen()),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('As senhas devem ser iguais.')),
+          );
+        }
+      }
+    }
+
+    @override
+    Widget build(BuildContext context) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Registrar-se'),
+        ),
+        body: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              TextField(
+                controller: _emailController,
+                decoration: const InputDecoration(labelText: 'Email'),
+              ),
+              TextField(
+                controller: _passwordController,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: 'Senha'),
+              ),
+              const SizedBox(height: 20),
+              _isLoading
+                  ? const CircularProgressIndicator()
+                  : ElevatedButton(
+                      onPressed: _register,
+                      child: const Text('Registrar'),
+                    ),
+            ],
+          ),
+        ),
+      );
+    }
+  }
 
 class Task {
   String name;
@@ -26,16 +284,18 @@ class Task {
   Task(this.name, {this.isCompleted = false, this.isMarkedForDeletion = false});
 }
 
-class MyHomePage extends StatefulWidget {
+class TaskScreen extends StatefulWidget {
   final String title;
 
-  const MyHomePage({super.key, required this.title});
+  const TaskScreen({super.key, this.title = 'Lista de Tarefas'});
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State <TaskScreen> createState() {
+    return _TaskScreenState();
+  }
 }
 
-class _MyHomePageState extends State<MyHomePage> {
+class _TaskScreenState extends State<TaskScreen> {
   final List<Task> taskList = [];
   final textController = TextEditingController();
   Task? _taskMarkedForDeletion;
