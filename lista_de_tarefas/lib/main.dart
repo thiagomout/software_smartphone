@@ -94,36 +94,108 @@ class AuthService {
   }
 }
 
+final String baseUrl = 'https://barra.cos.ufrj.br/rest';
+// Método para carregar a lista de tarefas do usuário
+Future<List<Task>> carregarTarefas(String token, String email) async {
+  final url = Uri.parse('$baseUrl/tarefas?email=eq.$email');
+  final headers = {
+    'Authorization': 'Bearer $token',
+    'accept': 'application/json',
+  };
 
-  Future<void> criarListaVazia(String token, String email) async {
-    final url = Uri.https('barra.cos.ufrj.br:443', '/rest/tarefas');
-    final client = http.Client();
+  try {
+    final response = await http.get(url, headers: headers);
+    if (response.statusCode == 200) {
+      // Log da resposta completa para depuração
+      print('Resposta JSON ao carregar tarefas: ${response.body}');
 
+      // Decodifica a resposta JSON
+      final responseData = json.decode(response.body);
+
+      // Verifica se a resposta é uma lista vazia
+      if (responseData is List && responseData.isEmpty) {
+        print('Nenhuma tarefa encontrada.');
+        return []; // Retorna uma lista vazia sem erros
+      }
+
+      // Caso a lista não esteja vazia, verifica a estrutura
+      if (responseData is List && responseData.isNotEmpty) {
+        final tasksJson = responseData[0]['valor'];
+        if (tasksJson is List) {
+          // Converte cada item da lista "valor" em uma instância de Task
+          return tasksJson.map((taskJson) => Task.fromJson(taskJson)).toList();
+        } else {
+          print('Erro: "valor" não é uma lista.');
+          return [];
+        }
+      } else {
+        print('Estrutura inesperada na resposta da API ao carregar tarefas.');
+        return [];
+      }
+    } else {
+      print('Erro ao carregar tarefas: ${response.statusCode} - ${response.body}');
+      return [];
+    }
+  } catch (e) {
+    print('Erro ao carregar tarefas: $e');
+    return [];
+  }
+}
+
+Future<void> salvarTarefas(String token, String email, List<Task> tasks) async {
+  final url = Uri.parse('$baseUrl/tarefas');
+  final headers = {
+    'Authorization': 'Bearer $token',
+    'Content-Type': 'application/json',
+  };
+
+  final body = json.encode({
+    'email': email,
+    'valor': tasks.map((task) => task.toJson()).toList(),
+  });
+
+  try {
+    // Primeiro, tenta com `POST` para criar as tarefas
+    final response = await http.post(url, headers: headers, body: body);
+    if (response.statusCode == 201) {
+      print('Tarefas criadas com sucesso.');
+    } else if (response.statusCode == 409) {
+      // Em caso de conflito (409), use `PATCH` para atualizar
+      final patchResponse = await http.patch(url, headers: headers, body: body);
+      if (patchResponse.statusCode == 204) {
+        print('Tarefas atualizadas com sucesso.');
+      } else {
+        print('Falha ao atualizar tarefas com PATCH: ${patchResponse.statusCode} - ${patchResponse.body}');
+      }
+    } else {
+      print('Erro ao salvar tarefas com POST: ${response.statusCode} - ${response.body}');
+    }
+  } catch (e) {
+    print('Erro ao salvar tarefas: $e');
+  }
+}
+
+  // Método para deletar todas as tarefas do usuário
+  Future<void> deletarTarefas(String token, String email) async {
+    final url = Uri.parse('$baseUrl/tarefas?email=eq.$email');
     final headers = {
-      'accept': 'application/json',
-      'Content-Type': 'application/json',
       'Authorization': 'Bearer $token',
+      'Content-Type': 'application/json',
     };
 
-    final body = json.encode({
-      'email': email,
-      'valor': [],
-    });
-
     try {
-      final response = await client.post(url, headers: headers, body: body);
-      if (response.statusCode == 201) {
+      final response = await http.delete(url, headers: headers);
+      if (response.statusCode == 204) {
+        print('Todas as tarefas foram deletadas com sucesso.');
       } else {
+        print('Erro ao deletar tarefas: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
-      if (kDebugMode) {
-        print('Ocorreu um erro: ${e.toString()}');
-      }
-    } finally {
-      client.close();
+      print('Erro ao deletar tarefas: $e');
     }
   }
 }
+
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key, required String title});
@@ -138,6 +210,7 @@ class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final AuthService _authService = AuthService();
+  final FocusNode _passwordFocusNode = FocusNode();
   bool _isLoading = false;
 
   void _login() async {
@@ -152,10 +225,11 @@ class _LoginPageState extends State<LoginPage> {
       _isLoading = false;
     });
     if (mounted) {
+      print('Token de acesso: $token');
       if (token.isNotEmpty) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const TaskScreen()),
+          MaterialPageRoute(builder: (context) => TaskScreen(token: token, email: _emailController.text.trim())),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -179,11 +253,17 @@ class _LoginPageState extends State<LoginPage> {
             TextField(
               controller: _emailController,
               decoration: const InputDecoration(labelText: 'Email'),
+              textInputAction: TextInputAction.next, // Ação para o próximo campo
+              onSubmitted: (_) {
+                FocusScope.of(context).requestFocus(_passwordFocusNode); // Move o foco para o campo de senha
+              },
             ),
             TextField(
               controller: _passwordController,
+              focusNode: _passwordFocusNode, // Associa o FocusNode ao campo de senha
               obscureText: true,
               decoration: const InputDecoration(labelText: 'Senha'),
+              onSubmitted: (_) => _login(), // Login ao pressionar Enter no campo de senha
             ),
             const SizedBox(height: 20),
             _isLoading
@@ -224,6 +304,11 @@ class _RegisterPageState extends State<RegisterPage> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final AuthService _authService = AuthService();
+  final FocusNode _emailFocusNode = FocusNode();
+  final FocusNode _phoneNumberFocusNode = FocusNode();
+  final FocusNode _passwordFocusNode = FocusNode();
+  final FocusNode _confirmPasswordFocusNode = FocusNode();
+
   bool _isLoading = false;
 
   void _register() async {
@@ -330,24 +415,45 @@ class _RegisterPageState extends State<RegisterPage> {
             TextField(
               controller: _nameController,
               decoration: const InputDecoration(labelText: 'Nome'),
+              textInputAction: TextInputAction.next,
+              onSubmitted: (_) {
+                FocusScope.of(context).requestFocus(_emailFocusNode);
+              },
             ),
             TextField(
               controller: _emailController,
               decoration: const InputDecoration(labelText: 'Email'),
+              focusNode: _emailFocusNode,
+              textInputAction: TextInputAction.next,
+              onSubmitted: (_) {
+                FocusScope.of(context).requestFocus(_phoneNumberFocusNode);
+              },
             ),
             TextField(
               controller: _phoneNumberController,
               decoration: const InputDecoration(labelText: 'Celular'),
+              focusNode: _phoneNumberFocusNode,
+              textInputAction: TextInputAction.next,
+              onSubmitted: (_) {
+                FocusScope.of(context).requestFocus(_passwordFocusNode);
+              },
             ),
             TextField(
               controller: _passwordController,
               obscureText: true,
               decoration: const InputDecoration(labelText: 'Senha'),
+              focusNode: _passwordFocusNode,
+              textInputAction: TextInputAction.next,
+              onSubmitted: (_) {
+                FocusScope.of(context).requestFocus(_confirmPasswordFocusNode);
+              },
             ),
             TextField(
               controller: _confirmPasswordController,
               obscureText: true,
               decoration: const InputDecoration(labelText: 'Confirme a senha'),
+              focusNode: _confirmPasswordFocusNode,
+              onSubmitted: (_) => _register(),
             ),
             const SizedBox(height: 20),
             _isLoading
@@ -365,65 +471,94 @@ class _RegisterPageState extends State<RegisterPage> {
 
 
 class Task {
-  String name;
+  String title;
   bool isCompleted;
-  bool isMarkedForDeletion;
+  int order;
+  bool isMarkedForDeletion = false;
 
-  Task(this.name, {this.isCompleted = false, this.isMarkedForDeletion = false});
+  Task(this.title, {this.isCompleted = false, this.order = 0});
+
+  factory Task.fromJson(Map<String, dynamic> json) {
+    return Task(
+      json['titulo'],
+      isCompleted: json['concluida'] ?? false,
+      order: json['ordem'] ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'titulo': title,
+      'concluida': isCompleted,
+      'ordem': order,
+    };
+  }
 }
 
 class TaskScreen extends StatefulWidget {
-  final String title;
+  final String token;
+  final String email;
 
-  const TaskScreen({super.key, this.title = 'Lista de Tarefas'});
+  const TaskScreen({super.key, required this.token, required this.email});
 
   @override
-  State <TaskScreen> createState() {
-    return _TaskScreenState();
-  }
+  State<TaskScreen> createState() => _TaskScreenState();
 }
 
 class _TaskScreenState extends State<TaskScreen> {
-  final List<Task> taskList = [];
+  final AuthService _authService = AuthService();
+  List<Task> taskList = [];
   final textController = TextEditingController();
+  bool _isLoading = true;
   Task? _taskMarkedForDeletion;
   bool _isUndoVisible = false;
 
+  @override
+  void initState() {
+    super.initState();
+    _loadTasks();
+  }
+
+    // Função de logout
+  void _logout() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginPage(title: 'Login')),
+    );
+  }
+
+  Future<void> _loadTasks() async {
+    setState(() {
+      _isLoading = true;
+    });
+    taskList = await _authService.carregarTarefas(widget.token, widget.email);
+    setState(() {
+      _isLoading = false;
+    });
+  }
+
+  Future<void> _saveTasks() async {
+    await _authService.salvarTarefas(widget.token, widget.email, taskList);
+  }
+
+  Future<void> _updateTasks() async {
+    await _authService.salvarTarefas(widget.token, widget.email, taskList);
+  }
+
+  Future<void> _deleteTasks() async {
+    await _authService.deletarTarefas(widget.token, widget.email);
+    setState(() {
+      taskList.clear();
+    });
+  }
+
   void _addTask(String taskName) {
     setState(() {
-      if (taskName.trim().isNotEmpty &&
-          !taskList.any((task) => task.name == taskName)) {
-        taskList.insert(0, Task(taskName.trim()));
+      if (taskName.trim().isNotEmpty && 
+          !taskList.any((task) => task.title == taskName.trim())) {
+        taskList.insert(0, Task(taskName.trim(), order: taskList.length + 1));
         textController.clear();
-      }
-    });
-  }
-
-  void _markTaskForDeletion(Task task) {
-    setState(() {
-      task.isMarkedForDeletion = true;
-      _isUndoVisible = true;
-      _taskMarkedForDeletion = task;
-      Future.delayed(const Duration(seconds: 3), () {
-        if (_isUndoVisible && task.isMarkedForDeletion) {
-          _deleteTask(task);
-        }
-      });
-    });
-  }
-
-  void _deleteTask(Task task) {
-    setState(() {
-      taskList.remove(task);
-      _isUndoVisible = false;
-    });
-  }
-
-  void _undoDeletion() {
-    setState(() {
-      if (_taskMarkedForDeletion != null) {
-        _taskMarkedForDeletion!.isMarkedForDeletion = false;
-        _isUndoVisible = false;
+        _saveTasks();
       }
     });
   }
@@ -433,17 +568,45 @@ class _TaskScreenState extends State<TaskScreen> {
       task.isCompleted = !task.isCompleted;
       taskList.remove(task);
       if (task.isCompleted) {
-        // Move to the beginning of completed tasks
-        int lastUncompletedIndex =
-            taskList.lastIndexWhere((t) => !t.isCompleted);
-        // Add right after the last uncompleted task
+        int lastUncompletedIndex = taskList.lastIndexWhere((t) => !t.isCompleted);
         taskList.insert(lastUncompletedIndex + 1, task);
       } else {
-        // Move to the top of the list if uncompleted
         taskList.insert(0, task);
       }
+      _updateTasks();
     });
   }
+
+void _markTaskForDeletion(Task task) {
+  print("Tarefa marcada para exclusão: ${task.title}");
+  setState(() {
+    _taskMarkedForDeletion = task;
+    _isUndoVisible = true;
+    task.isMarkedForDeletion = true;
+
+    Future.delayed(const Duration(seconds: 3), () {
+      // Só excluir a tarefa se o usuário não pressionou "Desfazer"
+      if (_isUndoVisible && _taskMarkedForDeletion == task) {
+        print("Tarefa excluída: ${task.title}");
+        setState(() {
+          taskList.remove(task);
+          _isUndoVisible = false;  // Reseta a visibilidade do botão "Desfazer"
+          _updateTasks();
+        });
+      }
+    });
+  });
+}
+
+void _undoDeletion() {
+  setState(() {
+    if (_taskMarkedForDeletion != null) {
+      _taskMarkedForDeletion!.isMarkedForDeletion = false;
+      _isUndoVisible = false;
+      _taskMarkedForDeletion = null;
+    }
+  });
+}
 
   @override
   void dispose() {
@@ -455,97 +618,106 @@ class _TaskScreenState extends State<TaskScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        foregroundColor: Colors.white,
-        backgroundColor: Colors.blue,
-        title: Text(widget.title),
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: TextField(
-              controller: textController,
-              autofocus: true,
-              onSubmitted: _addTask,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                hintText: 'Digite uma tarefa',
-              ),
-            ),
+        title: const Text('Lista de Tarefas'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete),
+            onPressed: _deleteTasks,
           ),
-          ElevatedButton(
-            onPressed: () => _addTask(textController.text),
-            child: const Text('Incluir Tarefa'),
-          ),
-          Expanded(
-            child: ListView.builder(
-              itemCount: taskList.length,
-              itemBuilder: (context, index) {
-                final task = taskList[index];
-                return Dismissible(
-                  key: Key(task.name),
-                  confirmDismiss: (direction) async {
-                    if (direction == DismissDirection.startToEnd) {
-                      _toggleTaskCompletion(task);
-                      return false;
-                    } else if (direction == DismissDirection.endToStart) {
-                      _markTaskForDeletion(task);
-                      return false;
-                    }
-                    return false;
-                  },
-                  background: Container(
-                    color: Colors.green,
-                    alignment: Alignment.centerLeft,
-                    padding: const EdgeInsets.only(left: 20),
-                    child: const Icon(Icons.check, color: Colors.white),
-                  ),
-                  secondaryBackground: Container(
-                    color: Colors.red,
-                    alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.only(right: 20),
-                    child: const Icon(Icons.delete, color: Colors.white),
-                  ),
-                  child: Card(
-                    margin: const EdgeInsets.all(8.0),
-                    color: task.isMarkedForDeletion
-                        ? Colors.red[100]
-                        : index % 2 == 0 ? Colors.grey[200] : Colors.grey[400],
-                    child: ListTile(
-                      title: Text(
-                        task.name,
-                        style: TextStyle(
-                          decoration: task.isCompleted
-                              ? TextDecoration.lineThrough
-                              : TextDecoration.none,
-                        ),
-                      ),
-                      trailing: task.isMarkedForDeletion
-                          ? ElevatedButton(
-                              onPressed: _undoDeletion,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.red,
-                              ),
-                              child: const Text('Desfazer'),
-                            )
-                          : IconButton(
-                              icon: const Icon(Icons.delete),
-                              onPressed: () => _markTaskForDeletion(task),
-                            ),
-                      leading: Checkbox(
-                        value: task.isCompleted,
-                        onChanged: (value) {
-                          _toggleTaskCompletion(task);
-                        },
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
+            IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: _logout, // Chama a função de logout ao clicar
+          ),        
         ],
       ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: TextField(
+                    controller: textController,
+                    onSubmitted: _addTask,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      hintText: 'Digite uma tarefa',
+                    ),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () => _addTask(textController.text),
+                  child: const Text('Incluir Tarefa'),
+                ),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: taskList.length,
+                    itemBuilder: (context, index) {
+                      final task = taskList[index];
+                      return Dismissible(
+                        key: Key(task.title),
+                        onDismissed: (direction) {
+                          _markTaskForDeletion(task);
+                        },
+                        confirmDismiss: (direction) async {
+                          if (direction == DismissDirection.endToStart) {
+                            _markTaskForDeletion(task);
+                            return false;
+                          }
+                          if (direction == DismissDirection.startToEnd) {
+                            _toggleTaskCompletion(task);
+                            return false;
+                          }
+                          return false;
+                        },
+                        background: Container(
+                          color: Colors.green,
+                          alignment: Alignment.centerLeft,
+                          padding: const EdgeInsets.only(left: 20),
+                          child: const Icon(Icons.check, color: Colors.white),
+                        ),
+                        secondaryBackground: Container(
+                          color: Colors.red,
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 20),
+                          child: const Icon(Icons.delete, color: Colors.white),
+                        ),
+                        child: Card(
+                          margin: const EdgeInsets.all(8.0),
+                          color: task.isMarkedForDeletion ? Colors.red[100] : (index % 2 == 0 ? Colors.grey[200] : Colors.grey[300]),
+                          child: ListTile(
+                            title: Text(
+                              task.title,
+                              style: TextStyle(
+                                decoration: task.isCompleted ? TextDecoration.lineThrough : TextDecoration.none,
+                              ),
+                            ),
+                            trailing: task.isMarkedForDeletion
+                                ? ElevatedButton(
+                                    onPressed: _undoDeletion,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.red,
+                                    ),
+                                    child: const Text('Desfazer'),
+                                  )
+                                : IconButton(
+                                    icon: const Icon(Icons.delete),
+                                    onPressed: () => _markTaskForDeletion(task),
+                                  ),
+                            leading: Checkbox(
+                              value: task.isCompleted,
+                              onChanged: (value) {
+                                _toggleTaskCompletion(task);
+                              },
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
     );
   }
 }
