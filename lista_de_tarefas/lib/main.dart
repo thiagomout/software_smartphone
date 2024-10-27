@@ -95,110 +95,89 @@ class AuthService {
 }
 
 final String baseUrl = 'https://barra.cos.ufrj.br/rest';
-// Método para carregar a lista de tarefas do usuário
-Future<List<Task>> carregarTarefas(String token, String email) async {
-  final url = Uri.parse('$baseUrl/tarefas?email=eq.$email');
-  final headers = {
-    'Authorization': 'Bearer $token',
-    'accept': 'application/json',
-  };
 
-  try {
-    final response = await http.get(url, headers: headers);
-    if (response.statusCode == 200) {
-      // Log da resposta completa para depuração
-      if (kDebugMode) {
-        print('Resposta JSON ao carregar tarefas: ${response.body}');
-      }
+Future<List<Task>> carregarTarefas(String token, String email, BuildContext context) async {
+    final url = Uri.parse('$baseUrl/tarefas?email=eq.$email');
+    final headers = {
+      'Authorization': 'Bearer $token',
+      'accept': 'application/json',
+    };
 
-      // Decodifica a resposta JSON
-      final responseData = json.decode(response.body);
-
-      // Verifica se a resposta é uma lista vazia
-      if (responseData is List && responseData.isEmpty) {
-        if (kDebugMode) {
-          print('Nenhuma tarefa encontrada.');
+    try {
+      final response = await http.get(url, headers: headers);
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        if (responseData is List && responseData.isEmpty) {
+          if (kDebugMode) print('Nenhuma tarefa encontrada.');
+          return [];
         }
-        return []; // Retorna uma lista vazia sem erros
-      }
 
-      // Caso a lista não esteja vazia, verifica a estrutura
-      if (responseData is List && responseData.isNotEmpty) {
-        final tasksJson = responseData[0]['valor'];
-        if (tasksJson is List) {
-          // Converte cada item da lista "valor" em uma instância de Task
-          return tasksJson.map((taskJson) => Task.fromJson(taskJson)).toList();
-        } else {
-          if (kDebugMode) {
-            print('Erro: "valor" não é uma lista.');
+        if (responseData is List && responseData.isNotEmpty) {
+          final tasksJson = responseData[0]['valor'];
+          if (tasksJson is List) {
+            return tasksJson.map((taskJson) => Task.fromJson(taskJson)).toList();
+          } else {
+            if (kDebugMode) print('Erro: "valor" não é uma lista.');
+            return [];
           }
+        } else {
+          if (kDebugMode) print('Estrutura inesperada na resposta da API ao carregar tarefas.');
           return [];
         }
       } else {
-        if (kDebugMode) {
-          print('Estrutura inesperada na resposta da API ao carregar tarefas.');
+        final responseData = json.decode(response.body);
+        if (responseData['message'] == "JWT expired") {
+          if (kDebugMode) print('Token expirado. Redirecionando para a tela de login.');
+          if (context.mounted) _redirectToLogin(context);
+          return [];
+        } else {
+          if (kDebugMode) print('Erro ao carregar tarefas: ${response.statusCode} - ${response.body}');
+          return [];
         }
-        return [];
       }
-    } else {
-      if (kDebugMode) {
-        print('Erro ao carregar tarefas: ${response.statusCode} - ${response.body}');
-      }
+    } catch (e) {
+      if (kDebugMode) print('Erro ao carregar tarefas: $e');
       return [];
     }
-  } catch (e) {
-    if (kDebugMode) {
-      print('Erro ao carregar tarefas: $e');
-    }
-    return [];
   }
-}
 
-Future<void> salvarTarefas(String token, String email, List<Task> tasks) async {
-  final url = Uri.parse('$baseUrl/tarefas');
-  final headers = {
-    'Authorization': 'Bearer $token',
-    'Content-Type': 'application/json',
-  };
+  Future<void> salvarTarefas(String token, String email, List<Task> tasks, BuildContext context) async {
+    final url = Uri.parse('$baseUrl/tarefas');
+    final headers = {
+      'Authorization': 'Bearer $token',
+      'Content-Type': 'application/json',
+    };
 
-  final body = json.encode({
-    'email': email,
-    'valor': tasks.map((task) => task.toJson()).toList(),
-  });
+    final body = json.encode({
+      'email': email,
+      'valor': tasks.map((task) => task.toJson()).toList(),
+    });
 
-  try {
-    // Primeiro, tenta com `POST` para criar as tarefas
-    final response = await http.post(url, headers: headers, body: body);
-    if (response.statusCode == 201) {
-      if (kDebugMode) {
-        print('Tarefas criadas com sucesso.');
-      }
-    } else if (response.statusCode == 409) {
-      // Em caso de conflito (409), use `PATCH` para atualizar
-      final patchResponse = await http.patch(url, headers: headers, body: body);
-      if (patchResponse.statusCode == 204) {
-        if (kDebugMode) {
-          print('Tarefas atualizadas com sucesso.');
-        }
-      } else {
-        if (kDebugMode) {
-          print('Falha ao atualizar tarefas com PATCH: ${patchResponse.statusCode} - ${patchResponse.body}');
+    try {
+      final response = await http.post(url, headers: headers, body: body);
+      if (response.statusCode == 201) {
+        if (kDebugMode) print('Tarefas criadas com sucesso.');
+      } else if(response.statusCode == 409){
+        final patchResponse = await http.patch(url, headers: headers, body: body);
+        if (patchResponse.statusCode == 204) {
+          if (kDebugMode) print('Tarefas atualizadas com sucesso.');
         }
       }
-    } else {
-      if (kDebugMode) {
-        print('Erro ao salvar tarefas com POST: ${response.statusCode} - ${response.body}');
+      else {
+        final responseData = json.decode(response.body);
+        if (responseData['message'] == "JWT expired") {
+          if (kDebugMode) print('Token expirado. Redirecionando para a tela de login.');
+          if (context.mounted) _redirectToLogin(context);
+        } else {
+          if (kDebugMode) print('Erro ao salvar tarefas com PATCH: ${response.statusCode} - ${response.body}');
+        }
       }
-    }
-  } catch (e) {
-    if (kDebugMode) {
-      print('Erro ao salvar tarefas: $e');
+    } catch (e) {
+      if (kDebugMode) print('Erro ao salvar tarefas: $e');
     }
   }
-}
 
-  // Método para deletar todas as tarefas do usuário
-  Future<void> deletarTarefas(String token, String email) async {
+  Future<void> deletarTarefas(String token, String email, BuildContext context) async {
     final url = Uri.parse('$baseUrl/tarefas?email=eq.$email');
     final headers = {
       'Authorization': 'Bearer $token',
@@ -208,18 +187,27 @@ Future<void> salvarTarefas(String token, String email, List<Task> tasks) async {
     try {
       final response = await http.delete(url, headers: headers);
       if (response.statusCode == 204) {
-        if (kDebugMode) {
-          print('Todas as tarefas foram deletadas com sucesso.');
-        }
+        if (kDebugMode) print('Todas as tarefas foram deletadas com sucesso.');
       } else {
-        if (kDebugMode) {
-          print('Erro ao deletar tarefas: ${response.statusCode} - ${response.body}');
+        final responseData = json.decode(response.body);
+        if (responseData['message'] == "JWT expired") {
+          if (kDebugMode) print('Token expirado. Redirecionando para a tela de login.');
+          if (context.mounted) _redirectToLogin(context);
+        } else {
+          if (kDebugMode) print('Erro ao deletar tarefas: ${response.statusCode} - ${response.body}');
         }
       }
     } catch (e) {
-      if (kDebugMode) {
-        print('Erro ao deletar tarefas: $e');
-      }
+      if (kDebugMode) print('Erro ao deletar tarefas: $e');
+    }
+  }
+
+  void _redirectToLogin(BuildContext context) {
+    if (context.mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginPage(title: 'Login')),
+      );
     }
   }
 }
@@ -561,22 +549,22 @@ class _TaskScreenState extends State<TaskScreen> {
     setState(() {
       _isLoading = true;
     });
-    taskList = await _authService.carregarTarefas(widget.token, widget.email);
+    taskList = await _authService.carregarTarefas(widget.token, widget.email, context);
     setState(() {
       _isLoading = false;
     });
   }
 
   Future<void> _saveTasks() async {
-    await _authService.salvarTarefas(widget.token, widget.email, taskList);
+    await _authService.salvarTarefas(widget.token, widget.email, taskList, context);
   }
 
   Future<void> _updateTasks() async {
-    await _authService.salvarTarefas(widget.token, widget.email, taskList);
+    await _authService.salvarTarefas(widget.token, widget.email, taskList, context);
   }
 
   Future<void> _deleteTasks() async {
-    await _authService.deletarTarefas(widget.token, widget.email);
+    await _authService.deletarTarefas(widget.token, widget.email, context);
     setState(() {
       taskList.clear();
     });
