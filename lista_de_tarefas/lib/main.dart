@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -107,14 +106,12 @@ Future<List<Task>> carregarTarefas(String token, String email) async {
     final response = await http.get(url, headers: headers);
     if (response.statusCode == 200) {
       // Log da resposta completa para depuração
-      print('Resposta JSON ao carregar tarefas: ${response.body}');
 
       // Decodifica a resposta JSON
       final responseData = json.decode(response.body);
 
       // Verifica se a resposta é uma lista vazia
       if (responseData is List && responseData.isEmpty) {
-        print('Nenhuma tarefa encontrada.');
         return []; // Retorna uma lista vazia sem erros
       }
 
@@ -125,19 +122,15 @@ Future<List<Task>> carregarTarefas(String token, String email) async {
           // Converte cada item da lista "valor" em uma instância de Task
           return tasksJson.map((taskJson) => Task.fromJson(taskJson)).toList();
         } else {
-          print('Erro: "valor" não é uma lista.');
           return [];
         }
       } else {
-        print('Estrutura inesperada na resposta da API ao carregar tarefas.');
         return [];
       }
     } else {
-      print('Erro ao carregar tarefas: ${response.statusCode} - ${response.body}');
       return [];
     }
   } catch (e) {
-    print('Erro ao carregar tarefas: $e');
     return [];
   }
 }
@@ -158,20 +151,15 @@ Future<void> salvarTarefas(String token, String email, List<Task> tasks) async {
     // Primeiro, tenta com `POST` para criar as tarefas
     final response = await http.post(url, headers: headers, body: body);
     if (response.statusCode == 201) {
-      print('Tarefas criadas com sucesso.');
     } else if (response.statusCode == 409) {
       // Em caso de conflito (409), use `PATCH` para atualizar
       final patchResponse = await http.patch(url, headers: headers, body: body);
       if (patchResponse.statusCode == 204) {
-        print('Tarefas atualizadas com sucesso.');
       } else {
-        print('Falha ao atualizar tarefas com PATCH: ${patchResponse.statusCode} - ${patchResponse.body}');
       }
     } else {
-      print('Erro ao salvar tarefas com POST: ${response.statusCode} - ${response.body}');
     }
   } catch (e) {
-    print('Erro ao salvar tarefas: $e');
   }
 }
 
@@ -186,12 +174,9 @@ Future<void> salvarTarefas(String token, String email, List<Task> tasks) async {
     try {
       final response = await http.delete(url, headers: headers);
       if (response.statusCode == 204) {
-        print('Todas as tarefas foram deletadas com sucesso.');
       } else {
-        print('Erro ao deletar tarefas: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
-      print('Erro ao deletar tarefas: $e');
     }
   }
 }
@@ -225,7 +210,6 @@ class _LoginPageState extends State<LoginPage> {
       _isLoading = false;
     });
     if (mounted) {
-      print('Token de acesso: $token');
       if (token.isNotEmpty) {
         Navigator.pushReplacement(
           context,
@@ -578,7 +562,6 @@ class _TaskScreenState extends State<TaskScreen> {
   }
 
 void _markTaskForDeletion(Task task) {
-  print("Tarefa marcada para exclusão: ${task.title}");
   setState(() {
     _taskMarkedForDeletion = task;
     _isUndoVisible = true;
@@ -587,7 +570,6 @@ void _markTaskForDeletion(Task task) {
     Future.delayed(const Duration(seconds: 3), () {
       // Só excluir a tarefa se o usuário não pressionou "Desfazer"
       if (_isUndoVisible && _taskMarkedForDeletion == task) {
-        print("Tarefa excluída: ${task.title}");
         setState(() {
           taskList.remove(task);
           _isUndoVisible = false;  // Reseta a visibilidade do botão "Desfazer"
