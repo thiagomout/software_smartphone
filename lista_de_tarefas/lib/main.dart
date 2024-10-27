@@ -77,8 +77,14 @@ class AuthService {
       final jsonBody = json.encode(body);
       final response = await client.post(url, headers: headers, body: jsonBody);
 
-      if (response.statusCode == 201) {
-        return '';
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        if (responseData.containsKey('token') && responseData['token'] != null) {
+          String token = responseData['token'];
+          return token;
+        } else {
+          return '';
+        }
       } else {
         return '';
       }
@@ -146,15 +152,17 @@ class _LoginPageState extends State<LoginPage> {
     setState(() {
       _isLoading = false;
     });
-    if (token.isNotEmpty) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const TaskScreen()),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Falha no login. Verifique suas credenciais.')),
-      );
+    if (mounted) {
+      if (token.isNotEmpty) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const TaskScreen()),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Falha no login. Verifique suas credenciais.')),
+        );
+      }
     }
   }
 
@@ -187,7 +195,10 @@ class _LoginPageState extends State<LoginPage> {
                   ),
             TextButton(
               onPressed: () {
-                // Implementar função de registro
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const RegisterPage()),
+              );
               },
               child: const Text('Registrar-se'),
             ),
@@ -219,26 +230,80 @@ class RegisterPage extends StatefulWidget {
       setState(() {
         _isLoading = true;
       });
-      String token = await _authService.registrarUsuario(
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (mounted){
+        if (_nameController.text.trim().isEmpty || 
+        _emailController.text.trim().isEmpty || 
+        _phonenunberController.text.trim().isEmpty || 
+        _passwordController.text.trim().isEmpty || 
+        _confirmpasswordController.text.trim().isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Preencha todos os campos.')),
+          );
+          return;
+        }
+      }
+      if (mounted){
+        if(_nameController.text.trim().length < 3){
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('O nome deve ter no mínimo 3 caracteres.')),
+          );
+          return;
+        }
+      }
+      // Validação do email
+      if (mounted){
+        if (!_emailController.text.trim().contains('@') || !_emailController.text.trim().contains('.')) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Email inválido.')),
+          );
+          return;
+        }
+      }
+      // Validação do celular
+      if (mounted){
+        if (_phonenunberController.text.trim().length < 10) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Celular inválido.')),
+          );
+          return;
+        }
+      }
+      if (mounted){
+        if (_passwordController.text.trim().length < 8) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('A senha deve ter no mínimo 8 caracteres.')),
+          );return;
+        }
+      }
+      if (mounted) {
+        if (_passwordController.text.trim() != _confirmpasswordController.text.trim()) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('As senhas devem ser iguais.'))
+          );
+          return;
+        } 
+        String token = await _authService.registrarUsuario(
         _emailController.text.trim(),
         _passwordController.text.trim(),
         _nameController.text.trim(),
         _phonenunberController.text.trim(),
       );
-      setState(() {
-        _isLoading = false;
-      });
-      if (mounted) {
-        if (_passwordController.text.trim() != _confirmpasswordController.text.trim()) {
-          Navigator.pushReplacement(
+      if (mounted && token.isNotEmpty) {
+            Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => const TaskScreen()),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('As senhas devem ser iguais.')),
+            MaterialPageRoute(builder: (context) => const LoginPage(title: '',)),
           );
         }
+      }
+      else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Email já registrado.')),
+        );
       }
     }
 
@@ -250,17 +315,31 @@ class RegisterPage extends StatefulWidget {
         ),
         body: Padding(
           padding: const EdgeInsets.all(16.0),
-          child: Column(
+          child:
+          Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              TextField(
+                controller: _nameController,
+                decoration: const InputDecoration(labelText: 'Nome'),
+              ),
               TextField(
                 controller: _emailController,
                 decoration: const InputDecoration(labelText: 'Email'),
               ),
               TextField(
+                controller: _phonenunberController,
+                decoration: const InputDecoration(labelText: 'Celular'),
+              ),
+              TextField(
                 controller: _passwordController,
                 obscureText: true,
                 decoration: const InputDecoration(labelText: 'Senha'),
+              ),
+              TextField(
+                controller: _confirmpasswordController,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: 'Confirme a senha'),
               ),
               const SizedBox(height: 20),
               _isLoading
