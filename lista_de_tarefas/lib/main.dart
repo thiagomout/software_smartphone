@@ -57,44 +57,43 @@ class AuthService {
       client.close();
     }
   }
-  Future<String> registrarUsuario(String email, String senha, String nome, String celular) async {
-    final url = Uri.https('barra.cos.ufrj.br:443', '/rest/rpc/registra_usuario');
-    final client = http.Client();
+ Future<String> registrarUsuario(String email, String senha, String nome, String celular) async {
+  final url = Uri.https('barra.cos.ufrj.br:443', 'rest/rpc/registra_usuario');
+  final client = http.Client();
 
-    final headers = {
-      'accept': 'application/json',
-      'Content-Type': 'application/json',
-    };
+  final headers = {
+    'accept': 'application/json',
+    'Content-Type': 'application/json',
+  };
 
-    final body = {
-      'nome': nome,
-      'email': email,
-      'celular': celular,
-      'senha': senha
-    };
+  final body = {
+    'nome': nome,
+    'email': email,
+    'celular': celular,
+    'senha': senha
+  };
 
-    try {
-      final jsonBody = json.encode(body);
-      final response = await client.post(url, headers: headers, body: jsonBody);
+  try {
+    final jsonBody = json.encode(body);
+    final response = await client.post(url, headers: headers, body: jsonBody);
 
-      if (response.statusCode == 200) {
-        final responseData = json.decode(response.body);
-        if (responseData.containsKey('token') && responseData['token'] != null) {
-          String token = responseData['token'];
-          return token;
-        } else {
-          return '';
-        }
-      } else {
-        return '';
-      }
-    } catch (e) {
-      return '';
-      }
-      finally {
-      client.close();
+    if (response.statusCode == 200) {
+      // Retorna "ok" se o registro foi bem-sucedido
+      return 'ok';
+    } else if (response.statusCode == 400) {
+      // Exibe a mensagem de erro retornada pela API
+      final responseData = json.decode(response.body);
+      return responseData['message'] ?? 'Erro desconhecido ao registrar';
+    } else {
+      return 'Erro inesperado. Código: ${response.statusCode}';
     }
+  } catch (e) {
+    return 'Ocorreu um erro: ${e.toString()}';
+  } finally {
+    client.close();
   }
+}
+
 
   Future<void> criarListaVazia(String token, String email) async {
     final url = Uri.https('barra.cos.ufrj.br:443', '/rest/tarefas');
@@ -210,150 +209,160 @@ class _LoginPageState extends State<LoginPage> {
 }
 
 class RegisterPage extends StatefulWidget {
-    const RegisterPage({super.key});
+  const RegisterPage({super.key});
 
-    @override
-    State<RegisterPage> createState() {
-      return _RegisterPageState();
-    }
+  @override
+  State<RegisterPage> createState() {
+    return _RegisterPageState();
   }
-  class _RegisterPageState extends State<RegisterPage> {
-    final _emailController = TextEditingController();
-    final _nameController = TextEditingController();
-    final _phonenunberController = TextEditingController();
-    final _passwordController = TextEditingController();
-    final _confirmpasswordController = TextEditingController();
-    final AuthService _authService = AuthService();
-    bool _isLoading = false;
+}
 
-    void _register() async {
-      setState(() {
-        _isLoading = true;
-      });
+class _RegisterPageState extends State<RegisterPage> {
+  final _emailController = TextEditingController();
+  final _nameController = TextEditingController();
+  final _phoneNumberController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  final AuthService _authService = AuthService();
+  bool _isLoading = false;
 
-      setState(() {
-        _isLoading = false;
-      });
-
-      if (mounted){
-        if (_nameController.text.trim().isEmpty || 
-        _emailController.text.trim().isEmpty || 
-        _phonenunberController.text.trim().isEmpty || 
-        _passwordController.text.trim().isEmpty || 
-        _confirmpasswordController.text.trim().isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Preencha todos os campos.')),
-          );
-          return;
-        }
-      }
-      if (mounted){
-        if(_nameController.text.trim().length < 3){
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('O nome deve ter no mínimo 3 caracteres.')),
-          );
-          return;
-        }
-      }
-      // Validação do email
-      if (mounted){
-        if (!_emailController.text.trim().contains('@') || !_emailController.text.trim().contains('.')) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Email inválido.')),
-          );
-          return;
-        }
-      }
-      // Validação do celular
-      if (mounted){
-        if (_phonenunberController.text.trim().length < 10) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Celular inválido.')),
-          );
-          return;
-        }
-      }
-      if (mounted){
-        if (_passwordController.text.trim().length < 8) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('A senha deve ter no mínimo 8 caracteres.')),
-          );return;
-        }
-      }
-      if (mounted) {
-        if (_passwordController.text.trim() != _confirmpasswordController.text.trim()) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('As senhas devem ser iguais.'))
-          );
-          return;
-        } 
-        String token = await _authService.registrarUsuario(
-        _emailController.text.trim(),
-        _passwordController.text.trim(),
-        _nameController.text.trim(),
-        _phonenunberController.text.trim(),
+  void _register() async {
+    // Validar campos obrigatórios
+    if (_nameController.text.trim().isEmpty ||
+        _emailController.text.trim().isEmpty ||
+        _phoneNumberController.text.trim().isEmpty ||
+        _passwordController.text.trim().isEmpty ||
+        _confirmPasswordController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Preencha todos os campos.')),
       );
-      if (mounted && token.isNotEmpty) {
-            Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const LoginPage(title: '',)),
-          );
-        }
-      }
-      else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Email já registrado.')),
+      return;
+    }
+
+    // Validação de comprimento do nome
+    if (_nameController.text.trim().length < 3) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('O nome deve ter no mínimo 3 caracteres.')),
+      );
+      return;
+    }
+
+    // Validação do formato de email
+    if (!_emailController.text.trim().contains('@') ||
+        !_emailController.text.trim().contains('.')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Email inválido.')),
+      );
+      return;
+    }
+
+    // Validação do número de celular
+    if (_phoneNumberController.text.trim().length < 10) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Celular inválido.')),
+      );
+      return;
+    }
+
+    // Validação de senha
+    if (_passwordController.text.trim().length < 8) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('A senha deve ter no mínimo 8 caracteres.')),
+      );
+      return;
+    }
+
+    // Verificar se as senhas coincidem
+    if (_passwordController.text.trim() !=
+        _confirmPasswordController.text.trim()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('As senhas devem ser iguais.')),
+      );
+      return;
+    }
+
+    // Exibir indicador de carregamento
+    setState(() {
+      _isLoading = true;
+    });
+
+    // Registrar usuário e obter token
+    String result = await _authService.registrarUsuario(
+      _emailController.text.trim(),
+      _passwordController.text.trim(),
+      _nameController.text.trim(),
+      _phoneNumberController.text.trim(),
+    );
+
+    setState(() {
+      _isLoading = false;
+    });
+
+    // Verificar resultado do registro
+    if (mounted) {
+    if (result == 'ok') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Registro bem-sucedido!')),
+      );
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginPage(title: '')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result)),
         );
       }
     }
-
-    @override
-    Widget build(BuildContext context) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Registrar-se'),
-        ),
-        body: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child:
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              TextField(
-                controller: _nameController,
-                decoration: const InputDecoration(labelText: 'Nome'),
-              ),
-              TextField(
-                controller: _emailController,
-                decoration: const InputDecoration(labelText: 'Email'),
-              ),
-              TextField(
-                controller: _phonenunberController,
-                decoration: const InputDecoration(labelText: 'Celular'),
-              ),
-              TextField(
-                controller: _passwordController,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: 'Senha'),
-              ),
-              TextField(
-                controller: _confirmpasswordController,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: 'Confirme a senha'),
-              ),
-              const SizedBox(height: 20),
-              _isLoading
-                  ? const CircularProgressIndicator()
-                  : ElevatedButton(
-                      onPressed: _register,
-                      child: const Text('Registrar'),
-                    ),
-            ],
-          ),
-        ),
-      );
-    }
   }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Registrar-se'),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(labelText: 'Nome'),
+            ),
+            TextField(
+              controller: _emailController,
+              decoration: const InputDecoration(labelText: 'Email'),
+            ),
+            TextField(
+              controller: _phoneNumberController,
+              decoration: const InputDecoration(labelText: 'Celular'),
+            ),
+            TextField(
+              controller: _passwordController,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'Senha'),
+            ),
+            TextField(
+              controller: _confirmPasswordController,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'Confirme a senha'),
+            ),
+            const SizedBox(height: 20),
+            _isLoading
+                ? const CircularProgressIndicator()
+                : ElevatedButton(
+                    onPressed: _register,
+                    child: const Text('Registrar'),
+                  ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 
 class Task {
   String name;
