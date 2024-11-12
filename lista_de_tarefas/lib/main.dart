@@ -127,22 +127,23 @@ class AuthService {
             return [];
           }
         } else {
-          if (kDebugMode)
-            print(
-                'Estrutura inesperada na resposta da API ao carregar tarefas.');
+          if (kDebugMode) {
+            print('Estrutura inesperada na resposta da API ao carregar tarefas.');
+          }
           return [];
         }
       } else {
         final responseData = json.decode(response.body);
         if (responseData['message'] == "JWT expired") {
-          if (kDebugMode)
+          if (kDebugMode) {
             print('Token expirado. Redirecionando para a tela de login.');
+          }
           if (context.mounted) _redirectToLogin(context);
           return [];
         } else {
-          if (kDebugMode)
-            print(
-                'Erro ao carregar tarefas: ${response.statusCode} - ${response.body}');
+          if (kDebugMode) {
+            print('Erro ao carregar tarefas: ${response.statusCode} - ${response.body}');
+          }
           return [];
         }
       }
@@ -178,13 +179,14 @@ class AuthService {
       } else {
         final responseData = json.decode(response.body);
         if (responseData['message'] == "JWT expired") {
-          if (kDebugMode)
+          if (kDebugMode) {
             print('Token expirado. Redirecionando para a tela de login.');
+          }
           if (context.mounted) _redirectToLogin(context);
         } else {
-          if (kDebugMode)
-            print(
-                'Erro ao salvar tarefas com PATCH: ${response.statusCode} - ${response.body}');
+          if (kDebugMode) {
+            print('Erro ao salvar tarefas com PATCH: ${response.statusCode} - ${response.body}');
+          }
         }
       }
     } catch (e) {
@@ -207,13 +209,14 @@ class AuthService {
       } else {
         final responseData = json.decode(response.body);
         if (responseData['message'] == "JWT expired") {
-          if (kDebugMode)
+          if (kDebugMode) {
             print('Token expirado. Redirecionando para a tela de login.');
+          }
           if (context.mounted) _redirectToLogin(context);
         } else {
-          if (kDebugMode)
-            print(
-                'Erro ao deletar tarefas: ${response.statusCode} - ${response.body}');
+          if (kDebugMode) {
+            print('Erro ao deletar tarefas: ${response.statusCode} - ${response.body}');
+          }
         }
       }
     } catch (e) {
