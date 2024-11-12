@@ -327,10 +327,10 @@ class _LoginPageState extends State<LoginPage> {
             ),
           ],
         ),
-          ),
-        );
-      }
-    }
+      ),
+    );
+  }
+}
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -642,6 +642,7 @@ class _TaskScreenState extends State<TaskScreen> with TickerProviderStateMixin {
                     taskList.lastIndexWhere((t) => !t.isCompleted);
                 taskList.insert(lastUncompletedIndex + 1, task);
                 _listKey.currentState?.insertItem(lastUncompletedIndex + 1);
+                _updateTasks();
               });
             }
           });
@@ -658,6 +659,7 @@ class _TaskScreenState extends State<TaskScreen> with TickerProviderStateMixin {
                 taskList.removeAt(index);
                 taskList.insert(0, task);
                 _listKey.currentState?.insertItem(0);
+                _updateTasks();
               });
             }
           });
@@ -707,14 +709,24 @@ class _TaskScreenState extends State<TaskScreen> with TickerProviderStateMixin {
     });
   }
 
-    Widget _buildTaskItem(
-      BuildContext context,
-      int index,
-      Animation<double> animation,
-    ) {
+  Widget _buildTaskItem(
+    BuildContext context,
+    int index,
+    Animation<double> animation,
+  ) {
+    final task = taskList[index];
+
     return SlideTransition(
-      position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero).animate(animation),
-      child: Dismissible(
+      position: Tween<Offset>(
+        begin: Offset(0, 1),
+        end: Offset(0, 0),
+      ).animate(animation),
+      child: RotationTransition(
+        turns: Tween<double>(
+          begin: task.isCompleted ? -0.015 : 0.0,
+          end: 0.0, // Adjust the tilt angle as needed
+        ).animate(animation),
+        child: Dismissible(
           key: Key(taskList[index].title), // Use the correct key
           onDismissed: (direction) => _markTaskForDeletion(taskList[index]),
           confirmDismiss: (direction) async {
@@ -728,24 +740,24 @@ class _TaskScreenState extends State<TaskScreen> with TickerProviderStateMixin {
             }
             return false;
           },
-            background: Container(
-              color: Colors.green,
-              alignment: Alignment.centerLeft,
-              padding: const EdgeInsets.only(left: 20),
-              child: const Icon(Icons.check, color: Colors.white),
-            ),
-            secondaryBackground: Container(
-              color: Colors.red,
-              alignment: Alignment.centerRight,
-              padding: const EdgeInsets.only(right: 20),
-              child: const Icon(Icons.delete, color: Colors.white),
-            ),
-            child: Card(
-              margin: const EdgeInsets.all(8.0),
-              color: taskList[index].isMarkedForDeletion
-                  ? Colors.red[100]
-                  : (index % 2 == 0 ? Colors.grey[200] : Colors.grey[300]),
-              child: ListTile(
+          background: Container(
+            color: Colors.green,
+            alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.only(left: 20),
+            child: const Icon(Icons.check, color: Colors.white),
+          ),
+          secondaryBackground: Container(
+            color: Colors.red,
+            alignment: Alignment.centerRight,
+            padding: const EdgeInsets.only(right: 20),
+            child: const Icon(Icons.delete, color: Colors.white),
+          ),
+          child: Card(
+            margin: const EdgeInsets.all(8.0),
+            color: taskList[index].isMarkedForDeletion
+                ? Colors.red[100]
+                : (index % 2 == 0 ? Colors.grey[200] : Colors.grey[300]),
+            child: ListTile(
                 title: Text(
                   taskList[index].title,
                   style: TextStyle(
@@ -767,17 +779,15 @@ class _TaskScreenState extends State<TaskScreen> with TickerProviderStateMixin {
                         onPressed: () => _markTaskForDeletion(taskList[index]),
                       ),
                 leading: Checkbox(
-                  value: taskList[index].isCompleted,
-                  onChanged: (value) {
-                    _toggleTaskCompletion(taskList[index], index);
-                  }
-                )
-              ),
-            ),
+                    value: taskList[index].isCompleted,
+                    onChanged: (value) {
+                      _toggleTaskCompletion(taskList[index], index);
+                    })),
           ),
-        );
-        
-    }
+        ),
+      ),
+    );
+  }
 
   @override
   void dispose() {
