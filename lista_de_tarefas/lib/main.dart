@@ -604,8 +604,12 @@ class _TaskScreenState extends State<TaskScreen> with TickerProviderStateMixin {
 
   Future<void> _deleteTasks() async {
     await _authService.deletarTarefas(widget.token, widget.email, context);
-    setState(() {
-      taskList.clear();
+        for (int i = taskList.length - 1; i >= 0; i--) {
+          _listKey.currentState?.removeItem(i, (context, animation) => Container());
+        }
+    await Future.delayed(const Duration(milliseconds: 300));
+      setState(() {
+        taskList.clear();
     });
   }
 
@@ -721,8 +725,8 @@ class _TaskScreenState extends State<TaskScreen> with TickerProviderStateMixin {
 
     return SlideTransition(
       position: Tween<Offset>(
-        begin: Offset(0, 1),
-        end: Offset(0, 0),
+        begin: const Offset(0, 1),
+        end: const Offset(0, 0),
       ).animate(animation),
       child: RotationTransition(
         turns: Tween<double>(
